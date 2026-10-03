@@ -106,3 +106,225 @@ class AskSageClient:
                 logger.error(f"Failed to parse JSON response: {e}")
                 logger.error(f"Response text was: {response_text}")
                 raise RuntimeError(f"Failed to parse response: {e}")
+
+    def _get_gemini_headers(
+        self, extra_headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        """Build headers for AskSage Gemini endpoints."""
+        req_headers = {
+            "x-access-tokens": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        if extra_headers:
+            for k, v in extra_headers.items():
+                if k.lower() in ("x-goog-api-client", "x-goog-user-project"):
+                    req_headers[k] = v
+        return req_headers
+
+    async def gemini_generate_content(
+        self,
+        model_action: str,
+        payload: Dict[str, Any],
+        params: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Send generateContent request to AskSage Gemini endpoint.
+
+        Args:
+            model_action: Model and action path, e.g. 'google-gemini-2.5-pro:generateContent'
+            payload: Request body
+            params: Optional query parameters
+            headers: Optional extra headers
+
+        Returns:
+            Parsed JSON response
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/google/v1beta/models/{model_action}"
+        req_headers = self._get_gemini_headers(headers)
+
+        logger.debug(f"Sending Gemini request to {url}")
+        async with self._session.post(
+            url, headers=req_headers, json=payload, params=params
+        ) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Gemini request failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Gemini request failed ({response.status}): {response_text}"
+                )
+
+            try:
+                data = await response.json()
+                return data
+            except Exception as e:
+                response_text = await response.text()
+                logger.error(f"Failed to parse Gemini JSON response: {e}")
+                raise RuntimeError(f"Failed to parse Gemini response: {e}")
+
+    async def stream_gemini_generate_content(
+        self,
+        model_action: str,
+        payload: Dict[str, Any],
+        params: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ):
+        """Stream generateContent request from AskSage Gemini endpoint.
+
+        Args:
+            model_action: Model and action path, e.g. 'google-gemini-2.5-pro:streamGenerateContent'
+            payload: Request body
+            params: Optional query parameters
+            headers: Optional extra headers
+
+        Yields:
+            Raw chunk bytes from the stream
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/google/v1beta/models/{model_action}"
+        req_headers = self._get_gemini_headers(headers)
+
+        logger.debug(f"Sending streaming Gemini request to {url}")
+        async with self._session.post(
+            url, headers=req_headers, json=payload, params=params
+        ) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Streaming Gemini request failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Streaming Gemini request failed ({response.status}): {response_text}"
+                )
+
+            async for chunk in response.content.iter_any():
+                yield chunk
+
+    def _get_anthropic_headers(
+        self, extra_headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        """Build headers for AskSage Anthropic endpoints."""
+        req_headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "x-access-tokens": self.api_key,
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+        }
+        if extra_headers:
+            for k, v in extra_headers.items():
+                if k.lower() in ("anthropic-version", "anthropic-beta"):
+                    req_headers[k.lower()] = v
+        return req_headers
+
+    async def anthropic_messages(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Send message request to AskSage Anthropic endpoint.
+
+        Args:
+            payload: Anthropic messages payload
+            headers: Optional additional headers to forward
+
+        Returns:
+            JSON response from AskSage
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/anthropic/v1/messages"
+        req_headers = self._get_anthropic_headers(headers)
+
+        logger.debug(f"Sending Anthropic message request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Anthropic message failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Anthropic message failed ({response.status}): {response_text}"
+                )
+
+            try:
+                data = await response.json()
+                return data
+            except Exception as e:
+                response_text = await response.text()
+                logger.error(f"Failed to parse Anthropic JSON response: {e}")
+                raise RuntimeError(f"Failed to parse Anthropic response: {e}")
+
+    async def stream_anthropic_messages(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ):
+        """Stream message request from AskSage Anthropic endpoint.
+
+        Args:
+            payload: Anthropic messages payload
+            headers: Optional additional headers to forward
+
+        Yields:
+            Raw chunk bytes from the upstream stream
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/anthropic/v1/messages"
+        req_headers = self._get_anthropic_headers(headers)
+
+        logger.debug(f"Sending streaming Anthropic message request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Streaming Anthropic message failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Streaming Anthropic message failed ({response.status}): {response_text}"
+                )
+
+            async for chunk in response.content.iter_any():
+                yield chunk
+
+    async def anthropic_count_tokens(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Count tokens using AskSage Anthropic endpoint."""
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/anthropic/v1/messages/count_tokens"
+        req_headers = self._get_anthropic_headers(headers)
+
+        logger.debug(f"Sending Anthropic count_tokens request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Anthropic count_tokens failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Anthropic count_tokens failed ({response.status}): {response_text}"
+                )
+
+            try:
+                data = await response.json()
+                return data
+            except Exception as e:
+                response_text = await response.text()
+                logger.error(f"Failed to parse Anthropic count_tokens response: {e}")
+                raise RuntimeError(f"Failed to parse response: {e}")
+

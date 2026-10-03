@@ -10,8 +10,10 @@ from loguru import logger
 
 from .__init__ import __version__
 from .config import AskSageConfig, load_config
+from .endpoints.anthropic import anthropic_count_tokens, anthropic_messages
 from .endpoints.chat import chat_completions
 from .endpoints.extras import get_latest_pypi_version
+from .endpoints.gemini import gemini_models_action
 from .endpoints.models import get_models
 from .models import ModelRegistry
 
@@ -100,6 +102,16 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/v1/models", get_models)
     app.router.add_post("/v1/chat/completions", chat_completions)
 
+    # Google Gemini compatible endpoints
+    app.router.add_post("/v1beta/models/{model_action:.*}", gemini_models_action)
+    app.router.add_post("/v1/models/{model_action:.*:.*}", gemini_models_action)
+
+    # Anthropic compatible endpoints
+    app.router.add_post("/v1/messages", anthropic_messages)
+    app.router.add_post("/messages", anthropic_messages)
+    app.router.add_post("/v1/messages/count_tokens", anthropic_count_tokens)
+    app.router.add_post("/messages/count_tokens", anthropic_count_tokens)
+
     # TODO: Add other endpoints
     # app.router.add_post("/v1/completions", completions)
     # app.router.add_post("/v1/embeddings", embeddings)
@@ -114,7 +126,9 @@ def setup_middleware(app: web.Application) -> None:
         response = await handler(request)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, Authorization, x-api-key, anthropic-version, anthropic-beta, x-access-tokens, x-goog-api-key, x-goog-api-client, x-goog-user-project"
+        )
         return response
 
     @web.middleware
