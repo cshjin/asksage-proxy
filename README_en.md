@@ -390,8 +390,10 @@ For detailed configuration options and advanced usage, see the [API Key Load Bal
 
 These endpoints convert responses from the AskSage API to be compatible with OpenAI's format:
 
-- **`/v1/chat/completions`**: Chat Completions API with streaming support.
-- **`/v1/models`**: Lists available models in OpenAI-compatible format.
+- **`/v1/chat/completions`** (alias: **`/chat/completions`**): Chat Completions API with streaming and tool calling support.
+- **`/v1/responses`** (alias: **`/responses`**): OpenAI Responses API supporting stateful inputs, tools, reasoning, and real-time SSE streaming.
+- **`/v1/embeddings`** (alias: **`/embeddings`**): Vector Embeddings API (compatible with `text-embedding-3-small`, `text-embedding-ada-002`, etc.).
+- **`/v1/models`** & **`/v1/models/{model_id}`**: Lists all available models or retrieves a single model in OpenAI-compatible format.
 
 #### Anthropic Compatible
 
@@ -431,7 +433,6 @@ These are proxy server endpoints that provide server information and health stat
 The following endpoints are planned for future releases:
 
 - **`/v1/completions`**: Legacy Completions API.
-- **`/v1/embeddings`**: Embeddings API.
 
 ### Models
 

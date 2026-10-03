@@ -328,3 +328,122 @@ class AskSageClient:
                 logger.error(f"Failed to parse Anthropic count_tokens response: {e}")
                 raise RuntimeError(f"Failed to parse response: {e}")
 
+    def _get_openai_headers(
+        self, extra_headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        """Build headers for AskSage OpenAI endpoints."""
+        req_headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "x-access-tokens": self.api_key,
+            "Content-Type": "application/json",
+        }
+        if extra_headers:
+            for k, v in extra_headers.items():
+                if k.lower() in ("openai-organization", "openai-project"):
+                    req_headers[k] = v
+        return req_headers
+
+    async def openai_responses(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> tuple[Dict[str, Any], int]:
+        """Send request to AskSage OpenAI Responses endpoint (/openai/v1/responses).
+
+        Args:
+            payload: Responses request payload
+            headers: Optional extra headers
+
+        Returns:
+            Tuple of (response_data, http_status_code)
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/openai/v1/responses"
+        req_headers = self._get_openai_headers(headers)
+
+        logger.debug(f"Sending OpenAI Responses request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            try:
+                data = await response.json()
+            except Exception:
+                response_text = await response.text()
+                data = {
+                    "error": {
+                        "message": response_text,
+                        "type": "api_error",
+                        "code": str(response.status),
+                    }
+                }
+            return data, response.status
+
+    async def stream_openai_responses(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ):
+        """Stream response from AskSage OpenAI Responses endpoint.
+
+        Args:
+            payload: Responses request payload with stream=True
+            headers: Optional extra headers
+
+        Yields:
+            Raw chunk bytes from the upstream SSE stream
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/openai/v1/responses"
+        req_headers = self._get_openai_headers(headers)
+
+        logger.debug(f"Sending streaming OpenAI Responses request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(
+                    f"Streaming Responses request failed: {response.status} - {response_text}"
+                )
+                raise RuntimeError(
+                    f"Streaming Responses request failed ({response.status}): {response_text}"
+                )
+
+            async for chunk in response.content.iter_any():
+                yield chunk
+
+    async def openai_embeddings(
+        self,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> tuple[Dict[str, Any], int]:
+        """Send request to AskSage OpenAI Embeddings endpoint (/openai/v1/embeddings).
+
+        Args:
+            payload: Embeddings request payload
+            headers: Optional extra headers
+
+        Returns:
+            Tuple of (response_data, http_status_code)
+        """
+        if not self._session:
+            raise RuntimeError("Session not initialized")
+
+        url = f"{self.config.asksage_server_base_url}/openai/v1/embeddings"
+        req_headers = self._get_openai_headers(headers)
+
+        logger.debug(f"Sending OpenAI Embeddings request to {url}")
+        async with self._session.post(url, headers=req_headers, json=payload) as response:
+            try:
+                data = await response.json()
+            except Exception:
+                response_text = await response.text()
+                data = {
+                    "error": {
+                        "message": response_text,
+                        "type": "api_error",
+                        "code": str(response.status),
+                    }
+                }
+            return data, response.status
+
